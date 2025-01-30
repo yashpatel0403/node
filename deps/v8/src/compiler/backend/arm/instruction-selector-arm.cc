@@ -748,13 +748,9 @@ void InstructionSelectorT<Adapter>::VisitStackSlot(node_t node) {
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitAbortCSADcheck(node_t node) {
-  if constexpr (Adapter::IsTurboshaft) {
-    // This is currently not used by Turboshaft.
-    UNIMPLEMENTED();
-  } else {
-    ArmOperandGeneratorT<Adapter> g(this);
-    Emit(kArchAbortCSADcheck, g.NoOutput(), g.UseFixed(node->InputAt(0), r1));
-  }
+  ArmOperandGeneratorT<Adapter> g(this);
+  Emit(kArchAbortCSADcheck, g.NoOutput(),
+       g.UseFixed(this->input_at(node, 0), r1));
 }
 
 #if V8_ENABLE_WEBASSEMBLY
@@ -2454,6 +2450,18 @@ RRR_OP_T_LIST(RRR_VISITOR)
 #undef RRR_OP_T_LIST
 
 template <typename Adapter>
+void InstructionSelectorT<Adapter>::VisitTruncateFloat64ToFloat16RawBits(
+    node_t node) {
+  UNIMPLEMENTED();
+}
+
+template <typename Adapter>
+void InstructionSelectorT<Adapter>::VisitChangeFloat16RawBitsToFloat64(
+    node_t node) {
+  UNIMPLEMENTED();
+}
+
+template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitFloat32Add(node_t node) {
   ArmOperandGeneratorT<Adapter> g(this);
   if constexpr (Adapter::IsTurboshaft) {
@@ -3194,26 +3202,24 @@ void InstructionSelectorT<TurboshaftAdapter>::VisitWordCompareZero(
         // actual value, or was already defined, which means it is scheduled
         // *AFTER* this branch).
         OpIndex node = projection->input();
-        OpIndex result = FindProjection(node, 0);
-        if (!result.valid() || IsDefined(result)) {
-          if (const OverflowCheckedBinopOp* binop =
-                  TryCast<OverflowCheckedBinopOp>(node)) {
-            DCHECK_EQ(binop->rep, WordRepresentation::Word32());
-            switch (binop->kind) {
-              case OverflowCheckedBinopOp::Kind::kSignedAdd:
-                cont->OverwriteAndNegateIfEqual(kOverflow);
-                return VisitBinop(this, node, kArmAdd, kArmAdd, cont);
-              case OverflowCheckedBinopOp::Kind::kSignedSub:
-                cont->OverwriteAndNegateIfEqual(kOverflow);
-                return VisitBinop(this, node, kArmSub, kArmRsb, cont);
-              case OverflowCheckedBinopOp::Kind::kSignedMul:
-                // ARM doesn't set the overflow flag for multiplication, so we
-                // need to test on kNotEqual. Here is the code sequence used:
-                //   smull resultlow, resulthigh, left, right
-                //   cmp resulthigh, Operand(resultlow, ASR, 31)
-                cont->OverwriteAndNegateIfEqual(kNotEqual);
-                return EmitInt32MulWithOverflow(this, node, cont);
-            }
+        if (const OverflowCheckedBinopOp* binop =
+                TryCast<OverflowCheckedBinopOp>(node);
+            binop && CanDoBranchIfOverflowFusion(node)) {
+          DCHECK_EQ(binop->rep, WordRepresentation::Word32());
+          switch (binop->kind) {
+            case OverflowCheckedBinopOp::Kind::kSignedAdd:
+              cont->OverwriteAndNegateIfEqual(kOverflow);
+              return VisitBinop(this, node, kArmAdd, kArmAdd, cont);
+            case OverflowCheckedBinopOp::Kind::kSignedSub:
+              cont->OverwriteAndNegateIfEqual(kOverflow);
+              return VisitBinop(this, node, kArmSub, kArmRsb, cont);
+            case OverflowCheckedBinopOp::Kind::kSignedMul:
+              // ARM doesn't set the overflow flag for multiplication, so we
+              // need to test on kNotEqual. Here is the code sequence used:
+              //   smull resultlow, resulthigh, left, right
+              //   cmp resulthigh, Operand(resultlow, ASR, 31)
+              cont->OverwriteAndNegateIfEqual(kNotEqual);
+              return EmitInt32MulWithOverflow(this, node, cont);
           }
         }
       }

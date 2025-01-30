@@ -83,12 +83,19 @@ const SOFT_SKIPPED_FILES = [
     // Tests slow to parse.
     // CrashTests:
     /^jquery.*\.js/,
+    /^js-test-pre\.js/,
     // Spidermonkey:
     'regress-308085.js',
     'regress-74474-002.js',
     'regress-74474-003.js',
     // V8:
     'object-literal.js',
+    'regress-390568195.js',
+];
+
+// Used with a lower probability if paths match.
+const SOFT_SKIPPED_PATHS = [
+    /webgl/,
 ];
 
 // Flags that lead to false positives or that are already passed by default.
@@ -97,20 +104,26 @@ const DISALLOWED_FLAGS = [
     // stabilized yet and would cause too much noise when enabled.
     /^--experimental-.*/,
 
-    // Disallowed due to noise. We explicitly add --harmony to job
-    // definitions, and all of these features are staged before launch.
-    /^--harmony-.*/,
+    // Disallowed due to noise. We explicitly add --harmony and --js-staging
+    // to trials, and all of these features are staged before launch.
+    /^--harmony-(?!shipping)/,
+    /^--js-(?!staging|shipping)/,
 
     // Disallowed because they are passed explicitly on the command line.
     '--allow-natives-syntax',
     '--debug-code',
-    '--harmony',
-    '--js-staging',
-    '--wasm-staging',
+    '--disable-abortjs',
+    '--enable-slow-asserts',
     '--expose-gc',
     '--expose_gc',
-    '--icu-data-file',
-    '--random-seed',
+    '--fuzzing',
+    '--omit-quit',
+    '--disable-in-process-stack-traces',
+    '--invoke-weak-callbacks',
+    '--verify-heap',
+
+    /^--icu-data-file.*/,
+    /^--random-seed.*/,
 
     // Disallowed due to false positives.
     '--check-handle-count',
@@ -119,7 +132,7 @@ const DISALLOWED_FLAGS = [
     '--expose-natives-as',
     '--expose-trigger-failure',
     '--mock-arraybuffer-allocator',
-    'natives',  // Used in conjuction with --expose-natives-as.
+    'natives',  // Used in conjunction with --expose-natives-as.
     /^--trace-path.*/,
 ];
 
@@ -211,6 +224,11 @@ function getSoftSkipped() {
 }
 
 // For testing.
+function getSoftSkippedPaths() {
+  return SOFT_SKIPPED_PATHS;
+}
+
+// For testing.
 function getGeneratedSoftSkipped() {
   return generatedSoftSkipped;
 }
@@ -221,6 +239,10 @@ function getGeneratedSloppy() {
 }
 
 function isTestSoftSkippedAbs(absPath) {
+  if (_findMatch(this.getSoftSkippedPaths(), absPath)) {
+    return true;
+  }
+
   const basename = path.basename(absPath);
   if (_findMatch(this.getSoftSkipped(), basename)) {
     return true;
@@ -275,6 +297,7 @@ module.exports = {
   getGeneratedSoftSkipped: getGeneratedSoftSkipped,
   getGeneratedSloppy: getGeneratedSloppy,
   getSoftSkipped: getSoftSkipped,
+  getSoftSkippedPaths: getSoftSkippedPaths,
   isTestSkippedAbs: isTestSkippedAbs,
   isTestSkippedRel: isTestSkippedRel,
   isTestSoftSkippedAbs: isTestSoftSkippedAbs,
